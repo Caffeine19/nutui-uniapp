@@ -1,6 +1,6 @@
 import type { ExtractPropTypes } from 'vue'
-import { commonProps, makeNumericProp, makeStringProp } from '../_utils'
 import { CLICK_EVENT } from '../_constants'
+import { commonProps, makeNumericProp, makeStringProp } from '../_utils'
 
 export const cellProps = {
   ...commonProps,
@@ -48,6 +48,10 @@ export const cellProps = {
    * @description 左侧图标
    */
   icon: String,
+  /**
+   * @description 标题宽度
+   */
+  titleWidth: makeNumericProp(undefined),
 }
 
 export type CellProps = ExtractPropTypes<typeof cellProps>

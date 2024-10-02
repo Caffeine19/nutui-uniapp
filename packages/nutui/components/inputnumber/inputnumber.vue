@@ -1,14 +1,21 @@
-<!-- eslint-disable padded-blocks -->
-<script setup lang="ts">
-import { computed, defineComponent, toRef } from 'vue'
-import { getMainClass, pxCheck } from '../_utils'
+<script lang="ts" setup>
+import type { BaseEvent, InputOnBlurEvent, InputOnFocusEvent, InputOnInputEvent } from '@uni-helper/uni-app-types'
+import type { CSSProperties } from 'vue'
+import { computed, defineComponent, nextTick, onMounted, ref, toRef, useSlots, watch } from 'vue'
 import { BLUR_EVENT, CHANGE_EVENT, FOCUS_EVENT, PREFIX, UPDATE_MODEL_EVENT } from '../_constants'
-import NutIcon from '../icon/icon.vue'
+import { getMainClass, pxCheck } from '../_utils'
 import { useFormDisabled } from '../form/form'
+import NutIcon from '../icon/icon.vue'
 import { inputnumberEmits, inputnumberProps } from './inputnumber'
 
+type UpdateSource = '' | 'click' | 'input' | 'blur'
+
 const props = defineProps(inputnumberProps)
+
 const emit = defineEmits(inputnumberEmits)
+
+const slots = useSlots()
+
 const formDisabled = useFormDisabled(toRef(props, 'disabled'))
 
 const classes = computed(() => {
@@ -16,78 +23,225 @@ const classes = computed(() => {
     [`${componentName}--disabled`]: formDisabled.value,
   })
 })
-function fixedDecimalPlaces(v: string | number): string {
-  return Number(v).toFixed(Number(props.decimalPlaces))
+
+function toNumber(value: number | string) {
+  if (typeof value === 'number') {
+    return value
+  }
+
+  return Number(value)
 }
-function change(event: any) {
-  const value = event.detail.value
-  emit(UPDATE_MODEL_EVENT, value, event)
-  emit(CHANGE_EVENT, value, event)
+
+const innerValue = computed(() => {
+  return toNumber(props.modelValue)
+})
+
+const innerMinValue = computed(() => {
+  return toNumber(props.min)
+})
+
+const innerMaxValue = computed(() => {
+  return toNumber(props.max)
+})
+
+const innerStepValue = computed(() => {
+  return toNumber(props.step)
+})
+
+const innerDigits = computed(() => {
+  return toNumber(props.decimalPlaces)
+})
+
+const allowDecrease = computed(() => {
+  if (formDisabled.value) {
+    return false
+  }
+
+  return innerValue.value > innerMinValue.value
+})
+
+const allowIncrease = computed(() => {
+  if (formDisabled.value) {
+    return false
+  }
+
+  return innerValue.value < innerMaxValue.value
+})
+
+const decreaseClasses = computed(() => {
+  return {
+    [`${componentName}__icon--disabled`]: !allowDecrease.value,
+  }
+})
+
+const inputStyles = computed(() => {
+  const value: CSSProperties = {}
+
+  const { inputWidth, buttonSize } = props
+
+  if (inputWidth) {
+    value.width = pxCheck(inputWidth)
+  }
+  if (buttonSize) {
+    value.height = pxCheck(buttonSize)
+  }
+
+  return value
+})
+
+const increaseClasses = computed(() => {
+  return {
+    [`${componentName}__icon--disabled`]: !allowIncrease.value,
+  }
+})
+
+const inputValue = ref('')
+
+let updateSource: UpdateSource = ''
+
+function precisionValue(value: number, type: 'number'): number
+function precisionValue(value: number, type: 'string'): string
+function precisionValue(value: number, type: 'number' | 'string') {
+  const fixedValue = value.toFixed(innerDigits.value)
+
+  if (type === 'string') {
+    return fixedValue
+  }
+
+  return Number(fixedValue)
 }
-function emitChange(value: string | number, event: Event) {
-  const output_value: number | string = fixedDecimalPlaces(value)
-  emit(UPDATE_MODEL_EVENT, output_value, event)
-  if (Number(props.modelValue) !== Number(output_value))
-    emit(CHANGE_EVENT, output_value, event)
+
+function updateInputValue(value: number) {
+  const finalValue = precisionValue(value, 'string')
+
+  if (finalValue !== inputValue.value) {
+    inputValue.value = finalValue
+  }
+  else {
+    inputValue.value = ''
+
+    nextTick(() => {
+      inputValue.value = finalValue
+    })
+  }
 }
-function addAllow(value = Number(props.modelValue)): boolean {
-  return value < Number(props.max) && !formDisabled.value
+
+function formatValue(value: number | string) {
+  let trulyValue = Math.max(
+    innerMinValue.value,
+    Math.min(
+      innerMaxValue.value,
+      toNumber(value),
+    ),
+  )
+
+  if (props.stepStrictly) {
+    trulyValue = Math.round(trulyValue / innerStepValue.value) * innerStepValue.value
+  }
+
+  return precisionValue(trulyValue, 'number')
 }
-function reduceAllow(value = Number(props.modelValue)): boolean {
-  return value > Number(props.min) && !formDisabled.value
+
+function emitChange(source: UpdateSource, value: number | string, event?: BaseEvent) {
+  updateSource = source
+
+  const formattedValue = formatValue(value)
+
+  if (['', 'blur'].includes(updateSource)) {
+    updateInputValue(formattedValue)
+  }
+
+  if (formattedValue !== props.modelValue) {
+    emit(UPDATE_MODEL_EVENT, formattedValue)
+    emit(CHANGE_EVENT, formattedValue, event)
+  }
 }
-function reduce(event: Event) {
+
+function handleInput(event: InputOnInputEvent) {
+  if (formDisabled.value || props.readonly)
+    return
+
+  emitChange('input', event.detail.value, event)
+}
+
+function handleDecrease(event: BaseEvent) {
   if (formDisabled.value)
     return
+
   emit('reduce', event)
-  const output_value = Number(props.modelValue) - Number(props.step)
-  if (reduceAllow() && output_value >= Number(props.min)) {
-    emitChange(output_value, event)
+
+  const finalValue = innerValue.value - innerStepValue.value
+
+  if (allowDecrease.value && finalValue >= innerMinValue.value) {
+    emitChange('click', finalValue, event)
   }
   else {
-    emitChange(Number(props.min), event)
     emit('overlimit', event, 'reduce')
+
+    emitChange('click', innerMinValue.value, event)
   }
 }
-function add(event: Event) {
+
+function handleIncrease(event: BaseEvent) {
   if (formDisabled.value)
     return
+
   emit('add', event)
-  const output_value = Number(props.modelValue) + Number(props.step)
-  if (addAllow() && output_value <= Number(props.max)) {
-    emitChange(output_value, event)
+
+  const finalValue = innerValue.value + innerStepValue.value
+
+  if (allowIncrease.value && finalValue <= innerMaxValue.value) {
+    emitChange('click', finalValue, event)
   }
   else {
-    emitChange(Number(props.max), event)
     emit('overlimit', event, 'add')
+
+    emitChange('click', innerMaxValue.value, event)
   }
 }
-function blur(event: Event) {
-  if (formDisabled.value)
+
+function handleFocus(event: InputOnFocusEvent) {
+  if (formDisabled.value || props.readonly)
     return
-  if (props.readonly)
-    return
-  const input = event.target as HTMLInputElement
-  // 如果没有值将不进行change修改
-  if (input.value) {
-    let value = +input.value
-    if (value < Number(props.min))
-      value = Number(props.min)
-    else if (value > Number(props.max))
-      value = Number(props.max)
-    emitChange(value, event)
-  }
-  emit(BLUR_EVENT, event)
-}
-function focus(event: Event) {
-  if (formDisabled.value)
-    return
-  if (props.readonly) {
-    blur(event)
-    return
-  }
+
   emit(FOCUS_EVENT, event)
 }
+
+function handleBlur(event: InputOnBlurEvent) {
+  if (formDisabled.value || props.readonly)
+    return
+
+  emit(BLUR_EVENT, event)
+
+  emitChange('blur', event.detail.value, event)
+}
+
+function correctValue() {
+  emitChange('', props.modelValue)
+}
+
+watch(() => props.modelValue, () => {
+  if (updateSource === 'input') {
+    updateSource = ''
+    return
+  }
+
+  correctValue()
+})
+
+watch(() => [
+  props.min,
+  props.max,
+  props.step,
+  props.stepStrictly,
+  props.decimalPlaces,
+], () => {
+  correctValue()
+})
+
+onMounted(() => {
+  correctValue()
+})
 </script>
 
 <script lang="ts">
@@ -100,69 +254,70 @@ export default defineComponent({
     addGlobalClass: true,
     styleIsolation: 'shared',
   },
-  inheritAttrs: true,
 })
 </script>
 
 <template>
-  <view :class="classes" :style="customStyle">
+  <view :class="classes" :style="props.customStyle">
     <view
       class="nut-input-number__icon nut-input-number__left"
-      :class="{ 'nut-input-number__icon--disabled': !reduceAllow() }"
-      @click="(reduce as any)"
+      :class="decreaseClasses"
+      @click="handleDecrease"
     >
-      <slot name="leftIcon">
-        <NutIcon name="minus" :size="pxCheck(buttonSize)" />
-      </slot>
+      <slot v-if="slots.leftIcon" name="leftIcon" />
+
+      <NutIcon v-else name="minus" :size="props.buttonSize" />
     </view>
+
     <view v-if="props.readonly" class="nut-input-number__text--readonly">
-      {{ modelValue }}
+      {{ inputValue }}
     </view>
+
     <template v-else>
-      <!-- #ifdef MP -->
+      <!-- #ifdef H5 -->
       <input
+        v-model="inputValue"
+        v-bind="$attrs"
         class="nut-input-number__text--input"
+        :style="inputStyles"
         type="number"
-        :min="min"
-        :max="max"
-        :style="{ width: pxCheck(inputWidth), height: pxCheck(buttonSize) }"
+        :min="props.min"
+        :max="props.max"
         :disabled="formDisabled"
-        :readonly="readonly"
-        :value="String(modelValue)"
-        @input="(change as any)"
-        @blur="(blur as any)"
-        @focus="(focus as any)"
+        @input="handleInput"
+        @focus="handleFocus"
+        @blur="handleBlur"
       >
       <!-- #endif -->
-      <!-- #ifndef MP -->
+
+      <!-- #ifndef H5 -->
       <input
+        v-model="inputValue"
         class="nut-input-number__text--input"
+        :style="inputStyles"
         type="number"
-        :min="min"
-        :max="max"
-        :style="{ width: pxCheck(inputWidth), height: pxCheck(buttonSize) }"
+        :min="props.min"
+        :max="props.max"
         :disabled="formDisabled"
-        :readonly="readonly"
-        :value="String(modelValue)"
-        v-bind="$attrs"
-        @input="(change as any)"
-        @blur="(blur as any)"
-        @focus="(focus as any)"
+        @input="handleInput"
+        @focus="handleFocus"
+        @blur="handleBlur"
       >
       <!-- #endif -->
     </template>
+
     <view
       class="nut-input-number__icon nut-input-number__right"
-      :class="{ 'nut-input-number__icon--disabled': !addAllow() }"
-      @click="(add as any)"
+      :class="increaseClasses"
+      @click="handleIncrease"
     >
-      <slot name="rightIcon">
-        <NutIcon name="plus" :size="pxCheck(buttonSize)" />
-      </slot>
+      <slot v-if="slots.rightIcon" name="rightIcon" />
+
+      <NutIcon v-else name="plus" :size="props.buttonSize" />
     </view>
   </view>
 </template>
 
 <style lang="scss">
-@import './index';
+@import "./index";
 </style>

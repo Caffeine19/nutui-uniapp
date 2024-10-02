@@ -1,14 +1,10 @@
 import type { ExtractPropTypes } from 'vue'
-import { badgeProps } from '../badge'
 import { commonProps } from '../_utils'
+import { badgeProps } from '../badge'
 
 export const tabbaritemProps = {
   ...commonProps,
   ...badgeProps,
-  /**
-   * @description 标签页的标题
-   */
-  tabTitle: String,
   /**
    * @description 标签名称，作为匹配的标识符
    */
@@ -18,9 +14,9 @@ export const tabbaritemProps = {
    */
   icon: String,
   /**
-   * @description 标签页的跳转链接
+   * @description 标签页的标题
    */
-  href: String,
+  tabTitle: String,
 }
 
 export type TabBarItemProps = ExtractPropTypes<typeof tabbaritemProps>

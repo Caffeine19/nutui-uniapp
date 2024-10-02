@@ -1,6 +1,7 @@
+import type { BaseEvent, InputOnBlurEvent, InputOnFocusEvent } from '@uni-helper/uni-app-types'
 import type { ExtractPropTypes } from 'vue'
-import { commonProps, isNumber, isObject, makeNumericProp, nullableBooleanProp } from '../_utils'
 import { BLUR_EVENT, CHANGE_EVENT, FOCUS_EVENT, UPDATE_MODEL_EVENT } from '../_constants'
+import { commonProps, makeNumericProp, nullableBooleanProp } from '../_utils'
 
 export const inputnumberProps = {
   ...commonProps,
@@ -8,14 +9,6 @@ export const inputnumberProps = {
    * @description 初始值
    */
   modelValue: makeNumericProp(0),
-  /**
-   * @description 输入框宽度
-   */
-  inputWidth: makeNumericProp(''),
-  /**
-   * @description 操作加减按钮的尺寸
-   */
-  buttonSize: makeNumericProp(''),
   /**
    * @description 最小值限制
    */
@@ -29,6 +22,10 @@ export const inputnumberProps = {
    */
   step: makeNumericProp(1),
   /**
+   * @description 是否只能输入 step 的倍数
+   */
+  stepStrictly: Boolean,
+  /**
    * @description 设置保留的小数位
    */
   decimalPlaces: makeNumericProp(0),
@@ -40,17 +37,28 @@ export const inputnumberProps = {
    * @description 只读状态禁用输入框操作行为
    */
   readonly: Boolean,
+  /**
+   * @description 输入框宽度
+   */
+  inputWidth: makeNumericProp(''),
+  /**
+   * @description 操作加减按钮的尺寸
+   */
+  buttonSize: makeNumericProp(''),
 }
+
 export type InputNumberProps = ExtractPropTypes<typeof inputnumberProps>
 
+/* eslint-disable unused-imports/no-unused-vars */
 export const inputnumberEmits = {
-  [BLUR_EVENT]: (evt: Event) => evt instanceof Object,
-  [FOCUS_EVENT]: (evt: Event) => evt instanceof Object,
-  reduce: (evt: Event) => evt instanceof Object,
-  add: (evt: Event) => evt instanceof Object,
-  overlimit: (evt: Event, type: 'reduce' | 'add') => isObject(evt) && (type === 'reduce' || type === 'add'),
-  [CHANGE_EVENT]: (_val1: string | number, _val2?: any) => true,
-  [UPDATE_MODEL_EVENT]: (val1?: number | string, val2?: Event) => (isNumber(val1) || isObject(val2)) && val2 instanceof Object,
+  [UPDATE_MODEL_EVENT]: (value: number) => true,
+  [CHANGE_EVENT]: (value: number, event?: BaseEvent) => true,
+  [FOCUS_EVENT]: (event: InputOnFocusEvent) => true,
+  [BLUR_EVENT]: (event: InputOnBlurEvent) => true,
+  reduce: (event: BaseEvent) => true,
+  add: (event: BaseEvent) => true,
+  overlimit: (event: BaseEvent, type: 'reduce' | 'add') => true,
 }
+/* eslint-enable unused-imports/no-unused-vars */
 
 export type InputNumberEmits = typeof inputnumberEmits
